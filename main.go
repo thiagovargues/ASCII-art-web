@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 )
 
 type PageData struct {
@@ -19,18 +20,44 @@ type PageData struct {
 }
 
 const templatesDir = "templates"
+const stylePath = "style.css"
+
+var (
+	allowedBanners = map[string]string{
+		"standard":   "standard.txt",
+		"shadow":     "shadow.txt",
+		"thinkertoy": "thinkertoy.txt",
+	}
+	bannerCache = struct {
+		mu      sync.Mutex
+		entries map[string]cacheEntry
+	}{
+		entries: make(map[string]cacheEntry),
+	}
+)
+
+type cacheEntry struct {
+	data map[rune][]string
+	err  error
+}
 
 func main() {
-	mux := http.NewServeMux()
-
-	mux.HandleFunc("/", handleHome)
-	mux.HandleFunc("/ascii-art", handleAsciiArt)
-
+	mux := newServer()
 	addr := listenAddr()
 	log.Printf("Starting ASCII Art server on %s", addr)
 	if err := http.ListenAndServe(addr, mux); err != nil {
 		log.Fatalf("server failed: %v", err)
 	}
+}
+
+func newServer() *http.ServeMux {
+	mux := http.NewServeMux()
+
+	mux.HandleFunc("/", handleHome)
+	mux.HandleFunc("/ascii-art", handleAsciiArt)
+	mux.HandleFunc("/style.css", handleStyle)
+
+	return mux
 }
 
 func handleHome(w http.ResponseWriter, r *http.Request) {
@@ -75,7 +102,7 @@ func handleAsciiArt(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	if bannerName != "standard" && bannerName != "shadow" && bannerName != "thinkertoy" {
+	if _, ok := allowedBanners[bannerName]; !ok {
 		renderPage(w, http.StatusBadRequest, PageData{
 			Text:   text,
 			Banner: bannerName,
@@ -84,8 +111,7 @@ func handleAsciiArt(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	bannerFile := bannerName + ".txt"
-	banner, err := LoadBanner(bannerFile)
+	banner, err := fetchBanner(bannerName)
 	if err != nil {
 		// subject wants 404 if banners not found
 		if errors.Is(err, os.ErrNotExist) {
@@ -165,4 +191,35 @@ func listenAddr() string {
 		port = ":" + port
 	}
 	return port
+}
+
+// fetchBanner loads a banner from disk once and caches it for subsequent requests.
+func fetchBanner(name string) (map[rune][]string, error) {
+	bannerFile, ok := allowedBanners[name]
+	if !ok {
+		return nil, errors.New("unknown banner")
+	}
+
+	bannerCache.mu.Lock()
+	entry, found := bannerCache.entries[name]
+	bannerCache.mu.Unlock()
+	if found {
+		return entry.data, entry.err
+	}
+
+	data, err := LoadBanner(bannerFile)
+
+	bannerCache.mu.Lock()
+	bannerCache.entries[name] = cacheEntry{data: data, err: err}
+	bannerCache.mu.Unlock()
+
+	return data, err
+}
+
+func handleStyle(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+	http.ServeFile(w, r, stylePath)
 }
