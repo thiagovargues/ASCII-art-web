@@ -22,6 +22,7 @@
         font-family: "SF Pro Text", "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
         background-color: #000;
         min-height: 100vh;
+        overflow-x: hidden;
         background-image:
           repeating-linear-gradient(0deg, rgba(255,255,255,0.03), rgba(255,255,255,0.03) 1px, transparent 1px, transparent 10px),
           repeating-linear-gradient(90deg, rgba(255,255,255,0.03), rgba(255,255,255,0.03) 1px, transparent 1px, transparent 10px),
@@ -82,6 +83,7 @@
         padding: 18px;
         box-shadow: none;
         backdrop-filter: blur(1px);
+        max-width: 100%;
       }
       .panel h2{
         margin: 0 0 8px;
@@ -109,8 +111,45 @@
         color: var(--ink-subtle);
         gap: 8px;
       }
+      .field-head{
+        display:flex;
+        justify-content:space-between;
+        align-items:center;
+        gap: 10px;
+        margin-bottom: 6px;
+      }
+      .field-meta{
+        display:flex;
+        gap: 8px;
+        flex-wrap: wrap;
+        justify-content: flex-end;
+      }
+      .metric{
+        color: var(--ink-subtle);
+        font-size: 11px;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        padding: 4px 8px;
+        border-radius: 999px;
+        border: 1px solid var(--border);
+        background: rgba(255,255,255,0.02);
+      }
+      .pill{
+        display:inline-flex;
+        align-items:center;
+        gap: 6px;
+        padding: 6px 10px;
+        border-radius: 999px;
+        background: rgba(255,255,255,0.08);
+        border: 1px solid var(--border-strong);
+        font-size: 12px;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
       select, textarea{
         width: 100%;
+        max-width: 100%;
+        min-width: 0;
         background: rgba(255,255,255,0.02);
         color: var(--ink);
         border: 1px solid var(--border);
@@ -138,6 +177,7 @@
         display:grid;
         grid-template-columns: minmax(220px, 0.6fr) minmax(0, 1fr);
         gap: 12px;
+        width: 100%;
       }
       @media (max-width: 780px){
         .input-row{ grid-template-columns: 1fr; }
@@ -147,6 +187,9 @@
         gap: 10px;
         flex-wrap: wrap;
         margin-top: 4px;
+      }
+      @media (max-width: 540px){
+        .actions{ justify-content: center; }
       }
       .result-actions{
         justify-content: flex-end;
@@ -168,6 +211,11 @@
         border-color: var(--border-strong);
       }
       button:active{ transform: translateY(1px); }
+      button:disabled{
+        opacity: 0.6;
+        cursor: default;
+        transform: none;
+      }
       .primary{
         background: #ffffff;
         color: #000000;
@@ -502,7 +550,10 @@
           <form method="POST" action="/ascii-art">
             <div class="input-row">
               <div>
-                <label for="banner">Banner</label>
+                <div class="field-head">
+                  <label for="banner">Banner</label>
+                  <span class="pill" id="banner-pill">{{.Banner}}</span>
+                </div>
                 <select id="banner" name="banner">
                   <option value="standard" {{if eq .Banner "standard"}}selected{{end}}>standard</option>
                   <option value="shadow" {{if eq .Banner "shadow"}}selected{{end}}>shadow</option>
@@ -510,7 +561,13 @@
                 </select>
               </div>
               <div>
-                <label for="text">Texte</label>
+                <div class="field-head">
+                  <label for="text">Texte</label>
+                  <div class="field-meta">
+                    <span class="metric" id="char-count">0 caractère</span>
+                    <span class="metric" id="line-count">0 ligne</span>
+                  </div>
+                </div>
                 <textarea id="text" name="text" placeholder="Tapez ici, utilisez \\n pour les retours à la ligne.">{{.Text}}</textarea>
               </div>
             </div>
@@ -538,18 +595,55 @@
             {{end}}
           </div>
           <div class="actions result-actions">
-            <button class="ghost" type="button" onclick="copyResult()">Copy</button>
+            <button class="ghost" type="button" id="copy-btn" onclick="copyResult()">Copy</button>
           </div>
         </section>
       </main>
     </div>
 
     <script>
+      const textArea = document.getElementById("text");
+      const charCount = document.getElementById("char-count");
+      const lineCount = document.getElementById("line-count");
+      const bannerSelect = document.getElementById("banner");
+      const bannerPill = document.getElementById("banner-pill");
+      const copyBtn = document.getElementById("copy-btn");
+
+      function updateMetrics() {
+        const value = textArea ? textArea.value : "";
+        const chars = value.length;
+        const normalized = value.replace(/\r\n/g, "\n").replace(/\\n/g, "\n");
+        const lines = normalized === "" ? 0 : normalized.split("\n").length;
+
+        if (charCount) charCount.textContent = `${chars} ${chars > 1 ? "caractères" : "caractère"}`;
+        if (lineCount) lineCount.textContent = `${lines} ${lines > 1 ? "lignes" : "ligne"}`;
+      }
+
+      function syncBanner() {
+        if (bannerSelect && bannerPill) {
+          bannerPill.textContent = bannerSelect.value || "standard";
+        }
+      }
+
       function copyResult() {
         const el = document.getElementById("result");
-        if (!el) return;
-        navigator.clipboard.writeText(el.innerText);
+        if (!el || !navigator.clipboard) return;
+
+        navigator.clipboard.writeText(el.innerText || el.textContent || "").then(() => {
+          if (!copyBtn) return;
+          copyBtn.textContent = "Copié";
+          copyBtn.disabled = true;
+          setTimeout(() => {
+            copyBtn.textContent = "Copy";
+            copyBtn.disabled = false;
+          }, 1400);
+        });
       }
+
+      textArea?.addEventListener("input", updateMetrics);
+      bannerSelect?.addEventListener("change", syncBanner);
+      updateMetrics();
+      syncBanner();
     </script>
   </body>
 </html>
