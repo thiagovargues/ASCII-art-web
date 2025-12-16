@@ -1,157 +1,67 @@
-Ascii-art-web
-Description
+Ascii Art Web
+=============
 
-Ascii-art-web is a Go project that runs an HTTP server and provides a web GUI to generate ASCII art from text.
+Small Go HTTP server that renders ASCII art from text using the `standard`, `shadow`, or `thinkertoy` banners.
 
-The user enters text in a form, selects a banner font (standard, shadow, or thinkertoy), and the server returns the ASCII-art rendering of that text.
-
-The rendering logic is based on the ASCII-art banner approach where each printable ASCII character (from space 32 to ~ 126) maps to 8 lines of drawing loaded from a banner file 
-
-main
-
-.
-
-Authors
-<Alioune Sall>
-<Emilia Chedot>
-<Thiago Vargues>
-
-Usage: how to run
 Requirements
+------------
+- Go 1.23+
+- No external Go modules (standard library only; see `go.mod`)
+- Banner files in repo root: `standard.txt`, `shadow.txt`, `thinkertoy.txt`
+- Template: `templates/index.html`
 
-Go installed
-
-Banner files available in the project root:
-
-standard.txt
-
-shadow.txt
-
-thinkertoy.txt
-
-HTML templates in: ./templates/
-
-Run the server
-
-From the project directory:
-
+Run locally
+-----------
+```
 go run .
-
-
-Or build and run:
-
+# or
 go build -o ascii-art-web
 ./ascii-art-web
+```
+The server listens on `$PORT` (default `:8080`).
 
+Docker
+------
+- Build: `docker image build -f Dockerfile -t ascii-art-web-docker .`
+- Run: `docker container run -p 8080:8080 --name dockerize ascii-art-web-docker`
+- Inspect: `docker images` then `docker ps -a`, and `docker exec -it dockerize /bin/sh` to see `/app` contents (expected: `ascii-art-web`, `templates/`, `standard.txt`, `shadow.txt`, `thinkertoy.txt`, `style.css`).
+- Metadata: the Dockerfile applies OCI labels and runs as a non-root `asciiart` user.
+- Note: Docker commands could not be executed in this audit environment (no access to the Docker daemon); run the above locally to verify image/container creation.
 
-Then open in your browser:
+How to use
+----------
+1) Open `http://localhost:8080`.  
+2) Enter text and choose a banner.  
+3) Click Generate; the result is rendered on the same page.
 
-http://localhost:8080
+Static files
+------------
+- `style.css` is served at `/style.css` by the server.
+- Banners are loaded once and cached in memory after first use.
 
-How to use in the browser
+Scripts
+-------
+- `scripts/docker-build-run.sh` builds the image and runs the container (defaults: image `ascii-art-web-docker`, container `dockerize`, port `8080`).
 
-Type text in the input field.
+Tests
+-----
+- Run `go test ./...` to check banner loading, rendering, and HTTP endpoints.
 
-Select a banner.
+Audit notes
+-----------
+- Allowed packages: only Go standard library is used.
+- Dockerfile: present with labels, multi-stage build, non-root runtime.
+- Build helper script: provided at `scripts/docker-build-run.sh`.
+- Tests: basic coverage for banner loading, rendering, and HTTP endpoints via `go test ./...`.
+- API: simple HTML form endpoints (`/` and `/ascii-art`), not a separate JSON API.
+- Known gap: Docker build/run still needs to be executed locally (daemon unavailable in this audit environment).
 
-Click Generate.
+License
+-------
+MIT (`LICENSE`).
 
-Notes about newlines:
-
-The input supports the two-character sequence \n, which is converted to a real newline before rendering (same behavior as the CLI version) 
-
-main
-
- 
-
-README
-
-.
-
-Implementation details: algorithm
-HTTP layer (web)
-
-GET /
-
-Returns the main HTML page (template).
-
-POST /ascii-art
-
-Reads form values:
-
-text (user input)
-
-banner (standard/shadow/thinkertoy)
-
-Validates input and banner choice.
-
-Loads the selected banner file.
-
-Renders the result and displays it (either on the same page or on a result page, depending on your implementation).
-
-Banner loading
-
-The banner file is read and split by newline. Each printable ASCII character uses a block of 9 lines in the file:
-
-Line 0: separator (empty)
-
-Lines 1–8: the 8 visual lines of the character
-
-The loader builds a map in the form:
-
-map[rune][]string
-
-
-Where each rune stores its 8 drawing lines 
-
-main
-
-.
-
-Rendering
-
-Normalize the input:
-
-Replace literal \n with real newlines 
-
-main
-
-.
-
-Split into logical lines by newline 
-
-main
-
-.
-
-For each logical line:
-
-If empty: output a blank line (except at the very end) 
-
-main
-
-.
-
-Otherwise: print 8 rows.
-
-Each row is built by concatenating the corresponding row of each character’s banner representation, using a buffer builder approach 
-
-main
-
-.
-
-Characters outside the supported ASCII range are ignored 
-
-main
-
-.
-
-Tests (optional)
-
-A helper script exists in the CLI project version (audit_tests.sh) to run multiple input cases (including \n) 
-
-audit_tests
-
-. For the web version, you can test endpoints using your browser or tools like curl (if you add those commands yourself).
-
-If you paste your current web main.go (server version), I can tailor the README to your exact port, template names, and whether the POST renders on / or /ascii-art (so it matches your code 1:1).
+Authors
+-------
+Alioune Sall  
+Emilia Chedot  
+Thiago Vargues

@@ -18,7 +18,10 @@ func LoadBanner(path string) (map[rune][]string, error) {
 		return nil, err
 	}
 
-	lines := strings.Split(string(data), "\n")
+	// Normalize CRLF to LF to avoid injecting carriage returns into the output
+	content := strings.ReplaceAll(string(data), "\r\n", "\n")
+	content = strings.ReplaceAll(content, "\r", "\n")
+	lines := strings.Split(content, "\n")
 	banner := make(map[rune][]string)
 
 	// Each rune uses 9 lines in file: 1 empty + 8 drawing lines
